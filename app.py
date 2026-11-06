@@ -1,6 +1,7 @@
 import hashlib, re
 import pandas as pd, streamlit as st
-from recommend import normalize, recommend, identify_ingredients, PANTRY_ALL, DEFAULT_PANTRY
+import recommend as R
+from recommend import normalize, recommend, identify_ingredients, DEFAULT_PANTRY
 
 MAX_FREE_PHOTOS = 5      # 每位訪客(每次開啟網頁)最多可用網站金鑰辨識幾張照片
 
@@ -12,8 +13,13 @@ EXAMPLES = [('雞蛋 + 番茄', '雞蛋 番茄'), ('雞肉 + 洋蔥 + 馬鈴薯'
 st.set_page_config(page_title="智慧冰箱食譜", page_icon="🧊")
 
 
+def data_sig():
+    """資料檔內容的指紋;檔案一換,指紋就變,下面的 load() 就會重新讀取"""
+    return hashlib.md5(open('recipes_clean.json', 'rb').read()).hexdigest()[:8]
+
+
 @st.cache_data
-def load():
+def load(sig):
     d = pd.read_json('recipes_clean.json')
     text = d['name'] + ' ' + d['ingredients'].map(' '.join)
     return d[~text.str.contains('兔')].reset_index(drop=True)      # 不收兔肉料理
@@ -44,7 +50,9 @@ def render_steps(steps):
     return "\n\n".join(blocks)
 
 
-df = load()
+R.refresh()
+SIG = data_sig()
+df = load(SIG)
 if 'seen_photos' not in st.session_state:
     st.session_state.seen_photos = set()
 
@@ -83,7 +91,7 @@ with st.expander("篩選設定"):
     top_n = c2.slider("最多顯示幾道菜", 5, 50, 20)
     cat_keys = st.multiselect("料理類型(不選 = 全部)", list(CAT_NAME), format_func=lambda k: CAT_NAME[k])
     must = st.multiselect("一定要用到的食材(選填)", have) if have else []
-    pantry = st.multiselect("家裡有的調味料(沒勾選的會標示為缺料)", PANTRY_ALL, default=DEFAULT_PANTRY)
+    pantry = st.multiselect("家裡有的調味料(沒勾選的會標示為缺料)", R.PANTRY_ALL, default=DEFAULT_PANTRY)
     strict = st.checkbox("只推薦「調味料我都有」的食譜", value=False)
     st.caption("排序:越能用到你輸入的食材、缺料越少越前面,並讓相似的食譜分散開。")
 
@@ -123,4 +131,4 @@ else:
                 st.markdown(render_steps(row['steps_tw']))
 
 st.divider()
-st.caption("食譜資料來源:HowToCook(Unlicense,公有領域)。食材辨識使用 Google Gemini。本網站為專題作品。")
+st.caption(f"食譜資料來源:HowToCook(Unlicense,公有領域)。食材辨識使用 Google Gemini。本網站為專題作品。　資料版本 {SIG}・共 {len(df)} 道")
