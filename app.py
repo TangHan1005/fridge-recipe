@@ -46,11 +46,17 @@ with st.expander("🧂 調味料設定(勾選家裡有的)"):
     strict = st.checkbox("只推薦「調味料我都有」的食譜", value=False)
 
 miss_n = st.slider("最多可缺幾樣主食材", 0, 4, 2)
+top_n = st.slider("最多顯示幾道菜", 5, 50, 20)
+must = st.multiselect("一定要用到的食材(選填)", have) if have else []
 
 if have:
-    res = recommend(df, have, max_missing=miss_n, pantry=pantry, strict_pantry=strict)
+    res = recommend(df, have, max_missing=miss_n, top_n=top_n, pantry=pantry,
+                    strict_pantry=strict, must_use=must)
     if res.empty:
-        st.warning("找不到符合的食譜,試著放寬缺料數或取消調味料限制")
+        st.warning("找不到符合的食譜,試著放寬缺料數、取消調味料限制,或取消「一定要用到」的食材")
+    else:
+        st.caption(f"共 {res.attrs.get('total', len(res))} 道符合,顯示 {len(res)} 道。"
+                   "排序:越能用到你輸入的食材、缺料越少越前面,並讓相似的食譜分散開。")
     for _, r in res.iterrows():
         row = df.loc[r['idx']]
         miss = '、'.join(r['missing']) or '無'
