@@ -3,22 +3,35 @@ import pandas as pd
 from opencc import OpenCC
 t2s = OpenCC('t2s')
 
-_A = json.load(open('aliases.json', encoding='utf8'))
-ALIAS = {a: n for n, als in _A['CANON'].items() for a in als}
-ALIAS_SORTED = sorted(ALIAS, key=len, reverse=True)
+_TERMS = {}
+_STATE = {'stamp': None}
+_A, ALIAS, ALIAS_SORTED, OTHER, PANTRY_ALL = {}, {}, [], [], []
 
-try:   # 字典以外的「其他食材」名稱,讓使用者也能輸入(例如 玉竹、石斛)
-    _R = json.load(open('recipes_clean.json', encoding='utf8'))
-    OTHER = sorted({o for x in _R for o in x.get('ing_other', []) if len(o) >= 2}, key=len, reverse=True)
-except Exception:
-    OTHER = []
 
-# 調味料清單(給網頁勾選用)與預設勾選
-PANTRY_ALL = list(_A['PANTRY'])
+def refresh():
+    """資料檔(aliases.json、recipes_clean.json)內容有更新,就自動重新讀取,不用重啟網站"""
+    global _A, ALIAS, ALIAS_SORTED, OTHER, PANTRY_ALL
+    stamp = tuple(os.stat(f).st_mtime_ns if os.path.exists(f) else 0 for f in ('aliases.json', 'recipes_clean.json'))
+    if stamp == _STATE['stamp']: return
+    _A = json.load(open('aliases.json', encoding='utf8'))
+    ALIAS = {a: n for n, als in _A['CANON'].items() for a in als}
+    ALIAS_SORTED = sorted(ALIAS, key=len, reverse=True)
+    try:   # 字典以外的「其他食材」名稱,讓使用者也能輸入(例如 玉竹、石斛)
+        _R = json.load(open('recipes_clean.json', encoding='utf8'))
+        OTHER = sorted({o for x in _R for o in x.get('ing_other', []) if len(o) >= 2}, key=len, reverse=True)
+    except Exception:
+        OTHER = []
+    PANTRY_ALL = list(_A['PANTRY'])        # 調味料清單(給網頁勾選用)
+    _TERMS.clear()
+    _STATE['stamp'] = stamp
+
+
+refresh()
 DEFAULT_PANTRY = ['鹽', '糖', '醬油', '食用油', '水', '料酒', '醋', '胡椒', '太白粉', '蔥', '薑', '蒜']
 
 
 def normalize(text):
+    refresh()
     orig = unicodedata.normalize('NFKC', text)
     text = t2s.convert(orig).lower()
     found = [o for o in OTHER if o in orig]
@@ -44,7 +57,6 @@ SAME = {'雞胸肉': '雞肉', '雞腿': '雞肉', '雞翅': '雞肉', '五花�
 def _c(names): return {SAME.get(x, x) for x in names}
 
 
-_TERMS = {}
 def _title_terms(c):
     """某個食材在菜名裡可能的寫法(含同類別名,例如 雞肉 -> 雞、雞腿、雞翅)"""
     if c not in _TERMS:
@@ -63,6 +75,7 @@ def recommend(df, have, max_missing=2, top_n=20, pantry=None, strict_pantry=Fals
        max_same: 「主食材完全相同」的食譜,最多先排幾道(例如一堆只用雞蛋的食譜)
        hide: 要隱藏的食譜類型(HIDE_TAGS 的名稱清單)
        categories: 只看這些料理類型(例如 ['soup', 'meat_dish'])"""
+    refresh()
     have = list(have)
     have_c, must_c = _c(have), _c(must_use or [])
     pantry = set(PANTRY_ALL if pantry is None else pantry)
