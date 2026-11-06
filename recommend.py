@@ -45,20 +45,22 @@ def _c(names): return {SAME.get(x, x) for x in names}
 
 
 def recommend(df, have, max_missing=2, top_n=20, pantry=None, strict_pantry=False,
-              must_use=None, diversity=True, max_same=3, hide=None):
+              must_use=None, diversity=True, max_same=3, hide=None, categories=None):
     """have: 使用者有的主食材(標準名稱清單)
        pantry: 使用者家裡有的調味料(None = 全部都有)
        strict_pantry: True 時,缺任何調味料的食譜直接排除
        must_use: 一定要用到的食材(例如 ['雞肉'])
        diversity: True 時,避免一堆差不多的食譜擠在前面,並讓每種食材都有機會出現
        max_same: 「主食材完全相同」的食譜,最多先排幾道(例如一堆只用雞蛋的食譜)
-       hide: 要隱藏的食譜類型(HIDE_TAGS 的名稱清單)"""
+       hide: 要隱藏的食譜類型(HIDE_TAGS 的名稱清單)
+       categories: 只看這些料理類型(例如 ['soup', 'meat_dish'])"""
     have = list(have)
     have_c, must_c = _c(have), _c(must_use or [])
     pantry = set(PANTRY_ALL if pantry is None else pantry)
     cands = []
     for i, r in df.iterrows():
         if _is_hidden(r, hide): continue                                     # 使用者選擇不想看到的類型
+        if categories and r['category'] not in categories: continue          # 只看某些料理類型
         minor = set(r.get('ing_minor', []))                                  # 副食材(藥材、特殊配料)
         orig = (set(r['ing_main']) | set(r.get('ing_other', []))) - minor    # 生鮮才算主食材
         main_c = _c(orig)
