@@ -15,6 +15,8 @@ def refresh():
     if stamp == _STATE['stamp']: return
     _A = json.load(open('aliases.json', encoding='utf8'))
     ALIAS = {a: n for n, als in _A['CANON'].items() for a in als}
+    for n in _A['CANON']:                  # 使用者直接打標準名稱(例如 青花菜、白飯、優格、柳橙)也要認得
+        ALIAS.setdefault(t2s.convert(n).lower(), n)
     ALIAS_SORTED = sorted(ALIAS, key=len, reverse=True)
     try:   # 字典以外的「其他食材」名稱,讓使用者也能輸入(例如 玉竹、石斛)
         _R = json.load(open('recipes_clean.json', encoding='utf8'))
