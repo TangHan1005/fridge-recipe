@@ -1,4 +1,4 @@
-import json, os, unicodedata
+import json, os, re, unicodedata
 import pandas as pd
 from opencc import OpenCC
 t2s = OpenCC('t2s')
@@ -37,6 +37,11 @@ def normalize(text):
     orig = unicodedata.normalize('NFKC', text)
     text = t2s.convert(orig).lower()
     found = [o for o in OTHER if o in orig]
+    # 單獨打「奶油」:台灣多半指固態的奶油(黃油),也可能是鮮奶油一類,兩種都算
+    bare = r'(?<![鲜淡重])奶油(?!乳酪|奶酪|芝士)'
+    if re.search(bare, text):
+        found += ['奶油', '黃油']
+        text = re.sub(bare, '、', text)
     for a in ALIAS_SORTED:
         if a in text:
             found.append(ALIAS[a]); text = text.replace(a, '、')
@@ -55,7 +60,7 @@ def _is_hidden(r, hide):
 
 
 # 比對時視為同一類的食材(使用者輸入「雞肉」,雞腿、雞翅的食譜也要找得到)
-SAME = {'雞胸肉': '雞肉', '雞腿': '雞肉', '雞翅': '雞肉', '五花肉': '豬肉'}
+SAME = {'雞胸肉': '雞肉', '雞腿': '雞肉', '雞翅': '雞肉', '五花肉': '豬肉', '奶油': '鮮奶油'}
 def _c(names): return {SAME.get(x, x) for x in names}
 
 
