@@ -8,7 +8,10 @@ st.set_page_config(page_title="智慧冰箱食譜推薦", page_icon="🧊")
 st.title("智慧冰箱食譜推薦")
 
 @st.cache_data
-def load(): return pd.read_json('recipes_clean.json')
+def load():
+    d = pd.read_json('recipes_clean.json')
+    text = d['name'] + ' ' + d['ingredients'].map(' '.join)
+    return d[~text.str.contains('兔')].reset_index(drop=True)      # 不收兔肉料理
 
 @st.cache_data(show_spinner="辨識中...")
 def identify(b, mt, _key=None): return identify_ingredients(b, mt, api_key=_key)
