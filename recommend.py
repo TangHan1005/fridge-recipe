@@ -44,6 +44,15 @@ SAME = {'雞胸肉': '雞肉', '雞腿': '雞肉', '雞翅': '雞肉', '五花�
 def _c(names): return {SAME.get(x, x) for x in names}
 
 
+_TERMS = {}
+def _title_terms(c):
+    """某個食材在菜名裡可能的寫法(含同類別名,例如 雞肉 -> 雞、雞腿、雞翅)"""
+    if c not in _TERMS:
+        names = {c} | {k for k, v in SAME.items() if v == c}
+        _TERMS[c] = set(names).union(*[set(_A['CANON'].get(n, [])) for n in names])
+    return _TERMS[c]
+
+
 def recommend(df, have, max_missing=2, top_n=20, pantry=None, strict_pantry=False,
               must_use=None, diversity=True, max_same=3, hide=None, categories=None):
     """have: 使用者有的主食材(標準名稱清單)
@@ -73,6 +82,9 @@ def recommend(df, have, max_missing=2, top_n=20, pantry=None, strict_pantry=Fals
         cov = len(hit_c) / len(main_c)        # 這道菜的食材,你有幾成
         use = len(hit_c) / len(have_c)        # 你輸入的食材,這道菜用到幾成
         score = 2 * cov * use / (cov + use)   # 兩者都高才高(調和平均)
+        title = str(r['name_tw']) + ' ' + str(r.get('name', ''))
+        star = {c for c in hit_c if any(t in title for t in _title_terms(c))}
+        score += 0.2 * len(star) / len(have_c)     # 菜名就有這個食材(例如 清蒸鱸魚)= 主角,排前面;配角食材不加分
         cands.append(dict(idx=i, name=r['name_tw'], category=r['category'],
                           difficulty=r['difficulty'], kcal=r['kcal'],
                           have=sorted(h for h in have if SAME.get(h, h) in hit_c),
