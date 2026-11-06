@@ -1,4 +1,4 @@
-import hashlib
+import hashlib, re
 import pandas as pd, streamlit as st
 from recommend import normalize, recommend, identify_ingredients, PANTRY_ALL, DEFAULT_PANTRY
 
@@ -24,6 +24,24 @@ def identify(b, mt, _key=None): return identify_ingredients(b, mt, api_key=_key)
 
 
 def _fill(s): st.session_state['ing'] = s
+
+
+IMG = re.compile(r'!\[[^\]]*\]\([^)]*\)|<img[^>]*>')      # 圖片語法:網站顯示不出圖,直接拿掉
+
+
+def render_steps(steps):
+    """步驟轉成 markdown:【小標題】用粗體,其餘依序編號(遇到小標題重新編號);圖片拿掉"""
+    blocks, cur, n = [], [], 0
+    for s in steps:
+        s = IMG.sub('', str(s)).strip()
+        if not s: continue
+        if s.startswith('【') and s.endswith('】'):
+            if cur: blocks.append("\n".join(cur)); cur = []
+            blocks.append(f"**{s[1:-1]}**"); n = 0
+        else:
+            n += 1; cur.append(f"{n}. {s}")
+    if cur: blocks.append("\n".join(cur))
+    return "\n\n".join(blocks)
 
 
 df = load()
@@ -102,7 +120,7 @@ else:
                 st.markdown("**用量**")
                 st.markdown("\n".join(f"- {a}" for a in row['amounts_tw']))
                 st.markdown("**步驟**")
-                st.markdown("\n".join(f"{i}. {s}" for i, s in enumerate(row['steps_tw'], 1)))
+                st.markdown(render_steps(row['steps_tw']))
 
 st.divider()
 st.caption("食譜資料來源:HowToCook(Unlicense,公有領域)。食材辨識使用 Google Gemini。本網站為專題作品。")
