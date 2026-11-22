@@ -1,7 +1,7 @@
 import hashlib, re
 import pandas as pd, streamlit as st
 import recommend as R
-from recommend import normalize, recommend, identify_ingredients, DEFAULT_PANTRY
+from recommend import GLOSS, normalize, recommend, identify_ingredients, DEFAULT_PANTRY
 
 MAX_FREE_PHOTOS = 5      # 每位訪客(每次開啟網頁)最多可用網站金鑰辨識幾張照片
 
@@ -114,7 +114,9 @@ else:
         meta = [CAT_NAME.get(r['category'], ''), '難度 ' + '★' * d + '☆' * (5 - d),
                 f"{int(r['kcal'])} 大卡" if pd.notna(r['kcal']) else '']
         with st.container(border=True):
-            st.markdown(f"#### {r['name']}")
+            st.markdown(f"#### {r['name_alt'] if r['subs'] and r['name_alt'] != r['name'] else r['name']}")
+            if r['subs'] and r['name_alt'] != r['name']:
+                st.caption(f"變通版(原食譜:{r['name']})")
             st.caption(" · ".join(m for m in meta if m))
             if r['missing']:
                 st.markdown(f":red[**需採買 {len(r['missing'])} 樣**]:{'、'.join(r['missing'])}")
@@ -130,6 +132,8 @@ else:
             st.markdown("已有:" + "、".join(r['have']))
             if r['missing_minor']:
                 st.caption("副食材(可省略):" + "、".join(r['missing_minor']))
+                g = [f"{m}:{GLOSS[m]}" for m in r['missing_minor'] if m in GLOSS]
+                if g: st.caption("　".join(g))
             if r['missing_pantry']:
                 st.caption("需要補的調味料:" + "、".join(r['missing_pantry']))
             with st.expander("查看用量與步驟"):

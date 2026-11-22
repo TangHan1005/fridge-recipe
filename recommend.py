@@ -6,7 +6,7 @@ t2s = OpenCC('t2s')
 _TERMS = {}
 _STATE = {'stamp': None}
 _A, ALIAS, ALIAS_SORTED, OTHER, PANTRY_ALL = {}, {}, [], [], []
-SUBS, OMIT = {}, {}
+SUBS, OMIT, GLOSS = {}, {}, {}
 LEVEL_W = {'高': 0.8, '中': 0.6, '低': 0.4}   # 替代食材的相似度權重(完全吻合 = 1)
 
 
@@ -29,7 +29,7 @@ def refresh():
     try:
         raw = json.load(open('substitutes.json', encoding='utf8'))
         SUBS = {k: [tuple(x) for x in v] for k, v in raw.items() if not k.startswith('_')}
-        OMIT.clear(); OMIT.update(raw.get('_omit', {}))
+        OMIT.clear(); OMIT.update(raw.get('_omit', {})); GLOSS.clear(); GLOSS.update(raw.get('_gloss', {}))
         for lv, note, members in raw.get('_groups', []):     # 同類食材互相可替代(個別寫的優先)
             for a in members:
                 have_alt = {x[0] for x in SUBS.get(a, [])}
@@ -109,12 +109,11 @@ def recommend(df, have, max_missing=2, top_n=20, pantry=None, strict_pantry=Fals
         if not main_c or not hit_c or len(miss_c) > max_missing: continue
         if must_c and not must_c <= hit_c: continue
         # 缺料變通:缺的食材如果有替代品剛好在你的清單裡,就算「可變通」(依相似度折算)
-        subs, w = [], 0.0
+        subs, w, name_alt = [], 0.0, str(r['name_tw'])
         if use_sub:
             title0 = str(r['name_tw']) + ' ' + str(r.get('name', ''))
             opts = []
             for m in sorted(miss_c):
-                if any(t in title0 for t in _title_terms(m)): continue      # 菜名裡的主角(例如 山藥南瓜燉雞湯)不能被換掉
                 for alt, lv, note in SUBS.get(m, []):
                     a = SAME.get(alt, alt)
                     if a in have_c and a not in hit_c:                       # 替代品必須是「這道菜還沒用到」的食材
@@ -124,10 +123,15 @@ def recommend(df, have, max_missing=2, top_n=20, pantry=None, strict_pantry=Fals
                 if m in used_need or a in used_alt: continue
                 used_need.add(m); used_alt.add(a)
                 subs.append(dict(need=m, alt=alt, level=lv, note=note)); w += wt
+            name_alt = str(r['name_tw'])
+            for s_ in subs:                                                  # 菜名直接寫著被換掉的食材就改名;否則在前面加「X版」
+                if s_['need'] in name_alt: name_alt = name_alt.replace(s_['need'], s_['alt'], 1)
+                elif s_['alt'] not in name_alt and any(t in title0 for t in _title_terms(s_['need'])): name_alt = s_['alt'] + '版' + name_alt
         omits = []                                                        # 沒有替代品、但可以省略的配角食材
         if use_sub:
             t0 = str(r['name_tw']) + ' ' + str(r.get('name', ''))
             for m in sorted(miss_c - {s['need'] for s in subs}):
+                if len(omits) >= 1 or len(subs) + len(omits) >= len(hit_c): break     # 最多省略一樣,且「變通」不能比「原本就有」還多
                 if m in OMIT and not any(t in t0 for t in _title_terms(m)):
                     omits.append(dict(need=m, note=OMIT[m])); w += 0.5
         solved = {s['need'] for s in subs} | {o['need'] for o in omits}
@@ -144,7 +148,7 @@ def recommend(df, have, max_missing=2, top_n=20, pantry=None, strict_pantry=Fals
                           difficulty=r['difficulty'], kcal=r['kcal'],
                           have=sorted(h for h in have if SAME.get(h, h) in hit_c),
                           missing=sorted(x for x in orig if SAME.get(x, x) in miss_c and SAME.get(x, x) not in solved),
-                          subs=subs, omits=omits, n_unsolved=len(miss_c) - len(solved),
+                          subs=subs, omits=omits, name_alt=name_alt, n_unsolved=len(miss_c) - len(solved),
                           missing_pantry=sorted(miss_p), missing_minor=sorted(miss_m),
                           n_miss=len(miss_c), n_hit=len(hit_c), n_miss_p=len(miss_p), n_minor=len(miss_m),
                           score=round(score, 3), _main=main_c, _hit=hit_c, _key=frozenset(main_c)))
