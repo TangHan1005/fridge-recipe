@@ -6,8 +6,21 @@ t2s = OpenCC('t2s')
 _TERMS = {}
 _STATE = {'stamp': None}
 _A, ALIAS, ALIAS_SORTED, OTHER, PANTRY_ALL = {}, {}, [], [], []
-SUBS, OMIT, GLOSS = {}, {}, {}
+SUBS, OMIT, GLOSS, MEAT = {}, {}, {}, {}
 LEVEL_W = {'高': 0.8, '中': 0.6, '低': 0.4}   # 替代食材的相似度權重(完全吻合 = 1)
+
+
+def _meat_note(need, alt):
+    if need not in MEAT or alt not in MEAT: return None
+    (tn, sn, fn), (ta, sa, fa) = MEAT[need], MEAT[alt]
+    if abs(ta - tn) < 10: t = f"烹煮時間差不多({alt}{sa})"
+    elif ta < tn: t = f"烹煮時間要縮短:{alt}{sa},原本的{need}{sn}"
+    else: t = f"烹煮時間要拉長:{alt}{sa},原本的{need}{sn}"
+    if fa == '鹹': m = f"{alt}本身已偏鹹,鹽和醬油先減半,最後再補"
+    elif fn == '鹹': m = f"{alt}沒有{need}的鹹味,鹽或醬油要多加一點,邊嚐邊加"
+    elif fa == '羶': m = "先汆燙去腥,並多加薑片和料酒"
+    else: m = "調味不用大改,起鍋前嚐一下再補鹽"
+    return t + ";" + m + "(以燉煮為準,快炒則把肉切薄)"
 
 
 def refresh():
@@ -29,11 +42,13 @@ def refresh():
     try:
         raw = json.load(open('substitutes.json', encoding='utf8'))
         SUBS = {k: [tuple(x) for x in v] for k, v in raw.items() if not k.startswith('_')}
-        OMIT.clear(); OMIT.update(raw.get('_omit', {})); GLOSS.clear(); GLOSS.update(raw.get('_gloss', {}))
+        OMIT.clear(); OMIT.update(raw.get('_omit', {})); GLOSS.clear(); GLOSS.update(raw.get('_gloss', {})); MEAT.clear(); MEAT.update(raw.get('_meat', {}))
         for lv, note, members in raw.get('_groups', []):     # 同類食材互相可替代(個別寫的優先)
             for a in members:
                 have_alt = {x[0] for x in SUBS.get(a, [])}
                 SUBS.setdefault(a, []).extend((b, lv, note) for b in members if b != a and b not in have_alt)
+        for k, lst in SUBS.items():            # 肉類互換:寫出具體的時間與調味方向
+            SUBS[k] = [(a, lv, _meat_note(k, a) or nt) for a, lv, nt in lst]
     except Exception: SUBS = {}
     PANTRY_ALL = list(_A['PANTRY'])        # 調味料清單(給網頁勾選用)
     _TERMS.clear()
