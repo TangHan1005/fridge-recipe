@@ -26,7 +26,13 @@ def refresh():
     except Exception:
         OTHER = []
     global SUBS
-    try: SUBS = json.load(open('substitutes.json', encoding='utf8'))
+    try:
+        raw = json.load(open('substitutes.json', encoding='utf8'))
+        SUBS = {k: [tuple(x) for x in v] for k, v in raw.items() if k != '_groups'}
+        for lv, note, members in raw.get('_groups', []):     # 同類食材互相可替代(個別寫的優先)
+            for a in members:
+                have_alt = {x[0] for x in SUBS.get(a, [])}
+                SUBS.setdefault(a, []).extend((b, lv, note) for b in members if b != a and b not in have_alt)
     except Exception: SUBS = {}
     PANTRY_ALL = list(_A['PANTRY'])        # 調味料清單(給網頁勾選用)
     _TERMS.clear()

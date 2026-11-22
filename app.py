@@ -123,7 +123,7 @@ else:
             else:
                 st.markdown(":green[**食材齊全**]")
             for s in r['subs']:
-                st.markdown(f"🔁 缺 **{s['need']}** → 可用你有的 **{s['alt']}**(相似度:{s['level']})  \n"
+                st.markdown(f"缺 **{s['need']}** → 可改用你有的 **{s['alt']}**(相似度:{s['level']})  \n"
                             f":gray[{s['note']}]")
             st.markdown("已有:" + "、".join(r['have']))
             if r['missing_minor']:
