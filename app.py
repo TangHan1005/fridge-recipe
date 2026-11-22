@@ -94,9 +94,10 @@ with st.expander("篩選設定"):
     pantry = st.multiselect("家裡有的調味料(沒勾選的會標示為缺料)", R.PANTRY_ALL, default=DEFAULT_PANTRY)
     strict = st.checkbox("只推薦「調味料我都有」的食譜", value=False)
     sort_by = st.selectbox("排序方式", ['推薦(預設)', '最少需要採買', '最容易上手(難度低)'])
-    excl = st.multiselect("不想吃或不能吃的食材(含這些食材的食譜不顯示)", sorted(R._A['CANON']))
-    only_ready = st.checkbox("只看不用買東西就能煮的(食材齊全 + 可變通完成)", value=False)
-    use_sub = st.checkbox("缺料時,用我有的食材變通(顯示替代建議)", value=True)
+    only_ready = st.checkbox("只看現在就能煮的", value=False, help="包含食材都齊全的,以及用替代或省略就能煮的菜")
+    use_sub = True
+    if st.query_params.get("demo") == "1":      # 展示用:網址後面加 ?demo=1 才會出現,可以關掉替代功能做對比
+        use_sub = st.checkbox("【展示用】開啟缺料變通", value=True)
     st.caption("排序:越能用到你輸入的食材、缺料越少越前面,並讓相似的食譜分散開。")
 
 # ---------- 結果 ----------
@@ -106,7 +107,7 @@ if not have:
         col.button(label, on_click=_fill, args=(val,), use_container_width=True)
 else:
     res = recommend(df, have, max_missing=miss_n, top_n=200 if (only_ready or sort_by != '推薦(預設)') else top_n, pantry=pantry, strict_pantry=strict,
-                    must_use=must, categories=cat_keys or None, use_sub=use_sub, exclude=excl)
+                    must_use=must, categories=cat_keys or None, use_sub=use_sub)
     if not res.empty and (only_ready or sort_by != '推薦(預設)'):
         total = res.attrs.get('total')
         if only_ready: res = res[res['n_unsolved'] == 0]
