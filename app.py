@@ -118,13 +118,15 @@ else:
             st.caption(" · ".join(m for m in meta if m))
             if r['missing']:
                 st.markdown(f":red[**需採買 {len(r['missing'])} 樣**]:{'、'.join(r['missing'])}")
-            elif r['subs']:
+            elif r['subs'] or r['omits']:
                 st.markdown(":orange[**可變通完成**]")
             else:
                 st.markdown(":green[**食材齊全**]")
             for s in r['subs']:
                 st.markdown(f"缺 **{s['need']}** → 可改用你有的 **{s['alt']}**(相似度:{s['level']})  \n"
                             f":gray[{s['note']}]")
+            for o in r['omits']:
+                st.markdown(f"缺 **{o['need']}** → 可以省略  \n:gray[{o['note']}]")
             st.markdown("已有:" + "、".join(r['have']))
             if r['missing_minor']:
                 st.caption("副食材(可省略):" + "、".join(r['missing_minor']))

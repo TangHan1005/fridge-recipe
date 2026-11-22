@@ -6,7 +6,7 @@ t2s = OpenCC('t2s')
 _TERMS = {}
 _STATE = {'stamp': None}
 _A, ALIAS, ALIAS_SORTED, OTHER, PANTRY_ALL = {}, {}, [], [], []
-SUBS = {}
+SUBS, OMIT = {}, {}
 LEVEL_W = {'高': 0.8, '中': 0.6, '低': 0.4}   # 替代食材的相似度權重(完全吻合 = 1)
 
 
@@ -28,7 +28,8 @@ def refresh():
     global SUBS
     try:
         raw = json.load(open('substitutes.json', encoding='utf8'))
-        SUBS = {k: [tuple(x) for x in v] for k, v in raw.items() if k != '_groups'}
+        SUBS = {k: [tuple(x) for x in v] for k, v in raw.items() if not k.startswith('_')}
+        OMIT.clear(); OMIT.update(raw.get('_omit', {}))
         for lv, note, members in raw.get('_groups', []):     # 同類食材互相可替代(個別寫的優先)
             for a in members:
                 have_alt = {x[0] for x in SUBS.get(a, [])}
@@ -123,7 +124,13 @@ def recommend(df, have, max_missing=2, top_n=20, pantry=None, strict_pantry=Fals
                 if m in used_need or a in used_alt: continue
                 used_need.add(m); used_alt.add(a)
                 subs.append(dict(need=m, alt=alt, level=lv, note=note)); w += wt
-        solved = {s['need'] for s in subs}
+        omits = []                                                        # 沒有替代品、但可以省略的配角食材
+        if use_sub:
+            t0 = str(r['name_tw']) + ' ' + str(r.get('name', ''))
+            for m in sorted(miss_c - {s['need'] for s in subs}):
+                if m in OMIT and not any(t in t0 for t in _title_terms(m)):
+                    omits.append(dict(need=m, note=OMIT[m])); w += 0.5
+        solved = {s['need'] for s in subs} | {o['need'] for o in omits}
         miss_p = set(r['ing_pantry']) - pantry
         if strict_pantry and miss_p: continue
         miss_m = minor - set(have)                                           # 副食材:缺了不影響篩選,只提醒
@@ -137,7 +144,7 @@ def recommend(df, have, max_missing=2, top_n=20, pantry=None, strict_pantry=Fals
                           difficulty=r['difficulty'], kcal=r['kcal'],
                           have=sorted(h for h in have if SAME.get(h, h) in hit_c),
                           missing=sorted(x for x in orig if SAME.get(x, x) in miss_c and SAME.get(x, x) not in solved),
-                          subs=subs, n_unsolved=len(miss_c) - len(subs),
+                          subs=subs, omits=omits, n_unsolved=len(miss_c) - len(solved),
                           missing_pantry=sorted(miss_p), missing_minor=sorted(miss_m),
                           n_miss=len(miss_c), n_hit=len(hit_c), n_miss_p=len(miss_p), n_minor=len(miss_m),
                           score=round(score, 3), _main=main_c, _hit=hit_c, _key=frozenset(main_c)))
