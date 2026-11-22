@@ -100,7 +100,7 @@ def _title_terms(c):
 
 
 def recommend(df, have, max_missing=2, top_n=20, pantry=None, strict_pantry=False,
-              must_use=None, diversity=True, max_same=3, hide=None, categories=None, use_sub=True):
+              must_use=None, diversity=True, max_same=3, hide=None, categories=None, use_sub=True, exclude=None):
     """have: 使用者有的主食材(標準名稱清單)
        pantry: 使用者家裡有的調味料(None = 全部都有)
        strict_pantry: True 時,缺任何調味料的食譜直接排除
@@ -111,7 +111,7 @@ def recommend(df, have, max_missing=2, top_n=20, pantry=None, strict_pantry=Fals
        categories: 只看這些料理類型(例如 ['soup', 'meat_dish'])"""
     refresh()
     have = list(have)
-    have_c, must_c = _c(have), _c(must_use or [])
+    have_c, must_c, excl_c = _c(have), _c(must_use or []), _c(exclude or [])
     pantry = set(PANTRY_ALL if pantry is None else pantry)
     cands = []
     for i, r in df.iterrows():
@@ -122,6 +122,7 @@ def recommend(df, have, max_missing=2, top_n=20, pantry=None, strict_pantry=Fals
         main_c = _c(orig)
         hit_c, miss_c = main_c & have_c, main_c - have_c
         if not main_c or not hit_c: continue
+        if excl_c & _c(set(r['ing_main']) | set(r.get('ing_other', []))): continue     # 使用者不想吃/不想用的食材
         if must_c and not must_c <= hit_c: continue
         # 缺料變通:缺的食材如果有替代品剛好在你的清單裡,就算「可變通」(依相似度折算)
         subs, w, name_alt = [], 0.0, str(r['name_tw'])

@@ -93,6 +93,8 @@ with st.expander("篩選設定"):
     must = st.multiselect("一定要用到的食材(選填)", have) if have else []
     pantry = st.multiselect("家裡有的調味料(沒勾選的會標示為缺料)", R.PANTRY_ALL, default=DEFAULT_PANTRY)
     strict = st.checkbox("只推薦「調味料我都有」的食譜", value=False)
+    excl = st.multiselect("不想吃或不能吃的食材(含這些食材的食譜不顯示)", sorted(R._A['CANON']))
+    only_ready = st.checkbox("只看不用買東西就能煮的(食材齊全 + 可變通完成)", value=False)
     use_sub = st.checkbox("缺料時,用我有的食材變通(顯示替代建議)", value=True)
     st.caption("排序:越能用到你輸入的食材、缺料越少越前面,並讓相似的食譜分散開。")
 
@@ -102,12 +104,18 @@ if not have:
     for col, (label, val) in zip(st.columns(len(EXAMPLES)), EXAMPLES):
         col.button(label, on_click=_fill, args=(val,), use_container_width=True)
 else:
-    res = recommend(df, have, max_missing=miss_n, top_n=top_n, pantry=pantry, strict_pantry=strict,
-                    must_use=must, categories=cat_keys or None, use_sub=use_sub)
+    res = recommend(df, have, max_missing=miss_n, top_n=200 if only_ready else top_n, pantry=pantry, strict_pantry=strict,
+                    must_use=must, categories=cat_keys or None, use_sub=use_sub, exclude=excl)
+    if only_ready and not res.empty:
+        total = res.attrs.get('total')
+        res = res[res['n_unsolved'] == 0].head(top_n).reset_index(drop=True)
+        res.attrs['total'] = total
     if res.empty:
         st.warning("找不到符合的食譜,試著放寬缺料數、取消調味料限制、料理類型或「一定要用到」的食材")
     else:
+        n_ok = int((res['n_unsolved'] == 0).sum()); n_sub = int(((res['n_unsolved'] == 0) & ((res['subs'].map(len) + res['omits'].map(len)) > 0)).sum())
         st.markdown(f"**找到 {res.attrs.get('total', len(res))} 道,顯示前 {len(res)} 道**")
+        st.caption(f"其中 {n_ok} 道不用買東西(食材齊全 {n_ok - n_sub}、可變通完成 {n_sub}),{len(res) - n_ok} 道需要採買")
     for _, r in res.iterrows():
         row = df.loc[r['idx']]
         d = int(r['difficulty']) if pd.notna(r['difficulty']) else 0
@@ -129,7 +137,7 @@ else:
                             f":gray[{s['note']}]")
             for o in r['omits']:
                 st.markdown(f"缺 **{o['need']}** → 可以省略  \n:gray[{o['note']}]")
-            st.markdown("已有:" + "、".join(r['have']))
+            st.markdown(f"已有({len(r['have'])}/{len(have)} 樣你的食材):" + "、".join(r['have']))
             if r['missing_minor']:
                 st.caption("副食材(可省略):" + "、".join(r['missing_minor']))
                 g = [f"{m}:{GLOSS[m]}" for m in r['missing_minor'] if m in GLOSS]
