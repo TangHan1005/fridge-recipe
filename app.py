@@ -144,7 +144,7 @@ else:
                             f":gray[{s['note']}]")
             for o in r['omits']:
                 st.markdown(f"缺 **{o['need']}** → 可以省略  \n:gray[{o['note']}]")
-            st.markdown(f"已有({len(r['have'])}/{len(have)} 樣你的食材):" + "、".join(r['have']))
+            st.markdown("已有:" + "、".join(r['have']))
             if r['missing_minor']:
                 st.caption("副食材(可省略):" + "、".join(r['missing_minor']))
                 g = [f"{m}:{GLOSS[m]}" for m in r['missing_minor'] if m in GLOSS]
