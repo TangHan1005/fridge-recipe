@@ -87,7 +87,7 @@ if have:
 # ---------- 篩選設定 ----------
 with st.expander("篩選設定"):
     c1, c2 = st.columns(2)
-    miss_n = c1.slider("最多可缺幾樣主食材", 0, 4, 2)
+    miss_n = c1.slider("最多需採買幾樣主食材(可替代、可省略的不算)", 0, 4, 2)
     top_n = c2.slider("最多顯示幾道菜", 5, 50, 20)
     cat_keys = st.multiselect("料理類型(不選 = 全部)", list(CAT_NAME), format_func=lambda k: CAT_NAME[k])
     must = st.multiselect("一定要用到的食材(選填)", have) if have else []

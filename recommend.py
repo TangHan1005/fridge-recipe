@@ -121,7 +121,7 @@ def recommend(df, have, max_missing=2, top_n=20, pantry=None, strict_pantry=Fals
         orig = (set(r['ing_main']) | set(r.get('ing_other', []))) - minor    # 生鮮才算主食材
         main_c = _c(orig)
         hit_c, miss_c = main_c & have_c, main_c - have_c
-        if not main_c or not hit_c or len(miss_c) > max_missing: continue
+        if not main_c or not hit_c: continue
         if must_c and not must_c <= hit_c: continue
         # 缺料變通:缺的食材如果有替代品剛好在你的清單裡,就算「可變通」(依相似度折算)
         subs, w, name_alt = [], 0.0, str(r['name_tw'])
@@ -150,6 +150,7 @@ def recommend(df, have, max_missing=2, top_n=20, pantry=None, strict_pantry=Fals
                 if m in OMIT and not any(t in t0 for t in _title_terms(m)):
                     omits.append(dict(need=m, note=OMIT[m])); w += 0.5
         solved = {s['need'] for s in subs} | {o['need'] for o in omits}
+        if len(miss_c) - len(solved) > max_missing: continue                 # 只有「需採買」的才算缺料;可替代、可省略的不算
         miss_p = set(r['ing_pantry']) - pantry
         if strict_pantry and miss_p: continue
         miss_m = minor - set(have)                                           # 副食材:缺了不影響篩選,只提醒
