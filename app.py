@@ -93,6 +93,7 @@ with st.expander("篩選設定"):
     must = st.multiselect("一定要用到的食材(選填)", have) if have else []
     pantry = st.multiselect("家裡有的調味料(沒勾選的會標示為缺料)", R.PANTRY_ALL, default=DEFAULT_PANTRY)
     strict = st.checkbox("只推薦「調味料我都有」的食譜", value=False)
+    sort_by = st.selectbox("排序方式", ['推薦(預設)', '最少需要採買', '最容易上手(難度低)'])
     excl = st.multiselect("不想吃或不能吃的食材(含這些食材的食譜不顯示)", sorted(R._A['CANON']))
     only_ready = st.checkbox("只看不用買東西就能煮的(食材齊全 + 可變通完成)", value=False)
     use_sub = st.checkbox("缺料時,用我有的食材變通(顯示替代建議)", value=True)
@@ -104,11 +105,16 @@ if not have:
     for col, (label, val) in zip(st.columns(len(EXAMPLES)), EXAMPLES):
         col.button(label, on_click=_fill, args=(val,), use_container_width=True)
 else:
-    res = recommend(df, have, max_missing=miss_n, top_n=200 if only_ready else top_n, pantry=pantry, strict_pantry=strict,
+    res = recommend(df, have, max_missing=miss_n, top_n=200 if (only_ready or sort_by != '推薦(預設)') else top_n, pantry=pantry, strict_pantry=strict,
                     must_use=must, categories=cat_keys or None, use_sub=use_sub, exclude=excl)
-    if only_ready and not res.empty:
+    if not res.empty and (only_ready or sort_by != '推薦(預設)'):
         total = res.attrs.get('total')
-        res = res[res['n_unsolved'] == 0].head(top_n).reset_index(drop=True)
+        if only_ready: res = res[res['n_unsolved'] == 0]
+        if sort_by == '最少需要採買':
+            res = res.sort_values(['n_unsolved', 'n_miss_p', 'score'], ascending=[True, True, False], kind='stable')
+        elif sort_by == '最容易上手(難度低)':
+            res = res.assign(_d=res['difficulty'].fillna(9)).sort_values(['_d', 'n_unsolved', 'score'], ascending=[True, True, False], kind='stable')
+        res = res.head(top_n).reset_index(drop=True)
         res.attrs['total'] = total
     if res.empty:
         st.warning("找不到符合的食譜,試著放寬缺料數、取消調味料限制、料理類型或「一定要用到」的食材")
