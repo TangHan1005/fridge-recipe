@@ -93,8 +93,8 @@ with st.expander("篩選設定"):
     must = st.multiselect("一定要用到的食材(選填)", have) if have else []
     pantry = st.multiselect("家裡有的調味料(沒勾選的會標示為缺料)", R.PANTRY_ALL, default=DEFAULT_PANTRY)
     strict = st.checkbox("只推薦「調味料我都有」的食譜", value=False)
-    sort_by = st.selectbox("排序方式", ['推薦(預設)', '最少需要採買', '最容易上手(難度低)'])
     only_ready = st.checkbox("只顯示現有食材可完成的", value=False, help="包含食材都齊全的,以及用替代或省略就能煮的菜")
+    sort_by = st.selectbox("排序方式", ['推薦(預設)', '最容易上手(難度低)'] if only_ready else ['推薦(預設)', '最少需要採買', '最容易上手(難度低)'])
     use_sub = True
     if st.query_params.get("demo") == "1":      # 展示用:網址後面加 ?demo=1 才會出現,可以關掉替代功能做對比
         use_sub = st.checkbox("【展示用】開啟缺料變通", value=True)
