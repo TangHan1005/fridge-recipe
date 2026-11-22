@@ -6,12 +6,14 @@ t2s = OpenCC('t2s')
 _TERMS = {}
 _STATE = {'stamp': None}
 _A, ALIAS, ALIAS_SORTED, OTHER, PANTRY_ALL = {}, {}, [], [], []
+SUBS = {}
+LEVEL_W = {'高': 0.8, '中': 0.6, '低': 0.4}   # 替代食材的相似度權重(完全吻合 = 1)
 
 
 def refresh():
     """資料檔(aliases.json、recipes_clean.json)內容有更新,就自動重新讀取,不用重啟網站"""
     global _A, ALIAS, ALIAS_SORTED, OTHER, PANTRY_ALL
-    stamp = tuple(os.stat(f).st_mtime_ns if os.path.exists(f) else 0 for f in ('aliases.json', 'recipes_clean.json'))
+    stamp = tuple(os.stat(f).st_mtime_ns if os.path.exists(f) else 0 for f in ('aliases.json', 'recipes_clean.json', 'substitutes.json'))
     if stamp == _STATE['stamp']: return
     _A = json.load(open('aliases.json', encoding='utf8'))
     ALIAS = {a: n for n, als in _A['CANON'].items() for a in als}
@@ -23,6 +25,9 @@ def refresh():
         OTHER = sorted({o for x in _R for o in x.get('ing_other', []) if len(o) >= 2}, key=len, reverse=True)
     except Exception:
         OTHER = []
+    global SUBS
+    try: SUBS = json.load(open('substitutes.json', encoding='utf8'))
+    except Exception: SUBS = {}
     PANTRY_ALL = list(_A['PANTRY'])        # 調味料清單(給網頁勾選用)
     _TERMS.clear()
     _STATE['stamp'] = stamp
@@ -73,7 +78,7 @@ def _title_terms(c):
 
 
 def recommend(df, have, max_missing=2, top_n=20, pantry=None, strict_pantry=False,
-              must_use=None, diversity=True, max_same=3, hide=None, categories=None):
+              must_use=None, diversity=True, max_same=3, hide=None, categories=None, use_sub=True):
     """have: 使用者有的主食材(標準名稱清單)
        pantry: 使用者家裡有的調味料(None = 全部都有)
        strict_pantry: True 時,缺任何調味料的食譜直接排除
@@ -96,11 +101,21 @@ def recommend(df, have, max_missing=2, top_n=20, pantry=None, strict_pantry=Fals
         hit_c, miss_c = main_c & have_c, main_c - have_c
         if not main_c or not hit_c or len(miss_c) > max_missing: continue
         if must_c and not must_c <= hit_c: continue
+        # 缺料變通:缺的食材如果有替代品剛好在你的清單裡,就算「可變通」(依相似度折算)
+        subs, w = [], 0.0
+        if use_sub:
+            for m in sorted(miss_c):
+                best = None
+                for alt, lv, note in SUBS.get(m, []):
+                    if SAME.get(alt, alt) in have_c and (best is None or LEVEL_W[lv] > LEVEL_W[best[1]]):
+                        best = (alt, lv, note)
+                if best: subs.append(dict(need=m, alt=best[0], level=best[1], note=best[2])); w += LEVEL_W[best[1]]
+        solved = {s['need'] for s in subs}
         miss_p = set(r['ing_pantry']) - pantry
         if strict_pantry and miss_p: continue
         miss_m = minor - set(have)                                           # 副食材:缺了不影響篩選,只提醒
-        cov = len(hit_c) / len(main_c)        # 這道菜的食材,你有幾成
-        use = len(hit_c) / len(have_c)        # 你輸入的食材,這道菜用到幾成
+        cov = (len(hit_c) + w) / len(main_c)  # 這道菜的食材,你有幾成(替代品依相似度打折)
+        use = min(1.0, (len(hit_c) + w) / len(have_c))        # 你輸入的食材,這道菜用到幾成
         score = 2 * cov * use / (cov + use)   # 兩者都高才高(調和平均)
         title = str(r['name_tw']) + ' ' + str(r.get('name', ''))
         star = {c for c in hit_c if any(t in title for t in _title_terms(c))}
@@ -108,7 +123,8 @@ def recommend(df, have, max_missing=2, top_n=20, pantry=None, strict_pantry=Fals
         cands.append(dict(idx=i, name=r['name_tw'], category=r['category'],
                           difficulty=r['difficulty'], kcal=r['kcal'],
                           have=sorted(h for h in have if SAME.get(h, h) in hit_c),
-                          missing=sorted(x for x in orig if SAME.get(x, x) in miss_c),
+                          missing=sorted(x for x in orig if SAME.get(x, x) in miss_c and SAME.get(x, x) not in solved),
+                          subs=subs, n_unsolved=len(miss_c) - len(subs),
                           missing_pantry=sorted(miss_p), missing_minor=sorted(miss_m),
                           n_miss=len(miss_c), n_hit=len(hit_c), n_miss_p=len(miss_p), n_minor=len(miss_m),
                           score=round(score, 3), _main=main_c, _hit=hit_c, _key=frozenset(main_c)))

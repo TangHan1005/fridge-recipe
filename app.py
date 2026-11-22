@@ -93,6 +93,7 @@ with st.expander("篩選設定"):
     must = st.multiselect("一定要用到的食材(選填)", have) if have else []
     pantry = st.multiselect("家裡有的調味料(沒勾選的會標示為缺料)", R.PANTRY_ALL, default=DEFAULT_PANTRY)
     strict = st.checkbox("只推薦「調味料我都有」的食譜", value=False)
+    use_sub = st.checkbox("缺料時,用我有的食材變通(顯示替代建議)", value=True)
     st.caption("排序:越能用到你輸入的食材、缺料越少越前面,並讓相似的食譜分散開。")
 
 # ---------- 結果 ----------
@@ -102,7 +103,7 @@ if not have:
         col.button(label, on_click=_fill, args=(val,), use_container_width=True)
 else:
     res = recommend(df, have, max_missing=miss_n, top_n=top_n, pantry=pantry, strict_pantry=strict,
-                    must_use=must, categories=cat_keys or None)
+                    must_use=must, categories=cat_keys or None, use_sub=use_sub)
     if res.empty:
         st.warning("找不到符合的食譜,試著放寬缺料數、取消調味料限制、料理類型或「一定要用到」的食材")
     else:
@@ -116,9 +117,14 @@ else:
             st.markdown(f"#### {r['name']}")
             st.caption(" · ".join(m for m in meta if m))
             if r['missing']:
-                st.markdown(f":orange[**缺 {len(r['missing'])} 樣**]:{'、'.join(r['missing'])}")
+                st.markdown(f":red[**需採買 {len(r['missing'])} 樣**]:{'、'.join(r['missing'])}")
+            elif r['subs']:
+                st.markdown(":orange[**可變通完成**]")
             else:
                 st.markdown(":green[**食材齊全**]")
+            for s in r['subs']:
+                st.markdown(f"🔁 缺 **{s['need']}** → 可用你有的 **{s['alt']}**(相似度:{s['level']})  \n"
+                            f":gray[{s['note']}]")
             st.markdown("已有:" + "、".join(r['have']))
             if r['missing_minor']:
                 st.caption("副食材(可省略):" + "、".join(r['missing_minor']))
