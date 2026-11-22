@@ -110,12 +110,19 @@ def recommend(df, have, max_missing=2, top_n=20, pantry=None, strict_pantry=Fals
         # 缺料變通:缺的食材如果有替代品剛好在你的清單裡,就算「可變通」(依相似度折算)
         subs, w = [], 0.0
         if use_sub:
+            title0 = str(r['name_tw']) + ' ' + str(r.get('name', ''))
+            opts = []
             for m in sorted(miss_c):
-                best = None
+                if any(t in title0 for t in _title_terms(m)): continue      # 菜名裡的主角(例如 山藥南瓜燉雞湯)不能被換掉
                 for alt, lv, note in SUBS.get(m, []):
-                    if SAME.get(alt, alt) in have_c and (best is None or LEVEL_W[lv] > LEVEL_W[best[1]]):
-                        best = (alt, lv, note)
-                if best: subs.append(dict(need=m, alt=best[0], level=best[1], note=best[2])); w += LEVEL_W[best[1]]
+                    a = SAME.get(alt, alt)
+                    if a in have_c and a not in hit_c:                       # 替代品必須是「這道菜還沒用到」的食材
+                        opts.append((LEVEL_W[lv], m, alt, lv, note, a))
+            used_need, used_alt = set(), set()
+            for wt, m, alt, lv, note, a in sorted(opts, key=lambda x: -x[0]):   # 一樣食材只能替代一次、一個缺口只換一次
+                if m in used_need or a in used_alt: continue
+                used_need.add(m); used_alt.add(a)
+                subs.append(dict(need=m, alt=alt, level=lv, note=note)); w += wt
         solved = {s['need'] for s in subs}
         miss_p = set(r['ing_pantry']) - pantry
         if strict_pantry and miss_p: continue
